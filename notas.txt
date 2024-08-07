@@ -1,0 +1,2 @@
+Digite sua pergunta (ou 'sair' para encerrar): me diga os produtos até 100 reais
+Desculpe, não entendi a sua pergunta. Pode tentar novamente?
