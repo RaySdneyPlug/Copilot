@@ -13,6 +13,7 @@ from nltk.corpus import stopwords
 import numpy as np
 import unicodedata
 from datetime import datetime
+from unidecode import unidecode
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -294,19 +295,48 @@ def responder_com_base_no_produto(pergunta_usuario, df_produtos):
     
     return None
 
-def responder_com_intervalo_de_preco(pergunta_usuario, df_produtos):
-    match = re.search(r'produtos entre (\d+) e (\d+)', pergunta_usuario.lower())
-    if match:
-        min_valor, max_valor = map(int, match.groups())
-        produtos_intervalo = [
-            f"{p['nome']} ({p['preco']} reais)"
-            for _, p in df_produtos.iterrows() if min_valor <= p['preco'] <= max_valor
-        ]
-        if produtos_intervalo:
-            return f"Os produtos com preço entre {min_valor} e {max_valor} reais são: {', '.join(produtos_intervalo)}."
-        else:
-            return f"Não há produtos com preço entre {min_valor} e {max_valor} reais."
+def identificar_intervalo(consulta):
+    texto = unidecode(consulta).lower()  # Corrigir aqui
+    padroes = [
+        r"entre\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)",
+        r"de\s*(\d+\.?\d*)\s*até\s*(\d+\.?\d*)",
+        r"de\s*(\d+\.?\d*)\s*a\s*(\d+\.?\d*)",
+        r"de\s*(\d+\.?\d*)\s*até\s*(\d+\.?\d*)",
+        r"de\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)",
+        r"entre\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)"
+    ]
+    
+    for padrao in padroes:
+        match = re.search(padrao, texto)
+        if match:
+            menor = float(match.group(1))
+            maior = float(match.group(2))
+            return menor, maior
+        
     return None
+
+# Função para filtrar produtos por intervalo de preço
+def filtrar_produtos_por_intervalo(consulta):
+    intervalo = identificar_intervalo(consulta)
+    if not intervalo:
+        return None
+
+    menor, maior = intervalo
+
+    # Carregar dados dos produtos
+    try:
+        df_produtos = conectar_banco_dados()
+    except Exception as e:
+        print(f"Erro ao carregar dados do banco de dados: {e}")
+        return None
+
+    # Filtrar produtos pelo intervalo de preço
+    df_filtrado = df_produtos[(df_produtos['preco'] >= menor) & (df_produtos['preco'] <= maior)]
+
+    # Selecionar apenas as colunas desejadas
+    df_filtrado = df_filtrado[['nome', 'descricao', 'preco']]
+
+    return df_filtrado
 
 def fazer_pergunta(train_data, pergunta_usuario, df_produtos):
     try:
@@ -324,9 +354,6 @@ def fazer_pergunta(train_data, pergunta_usuario, df_produtos):
             resposta_base_produto = responder_com_base_no_produto(pergunta_usuario, df_produtos)
             if resposta_base_produto:
                 return resposta_base_produto
-            resposta_intervalo_preco = responder_com_intervalo_de_preco(pergunta_usuario, df_produtos)
-            if resposta_intervalo_preco:
-                return resposta_intervalo_preco
             return "Desculpe, não entendi a sua pergunta. Pode tentar novamente?"
 
         max_similarity = np.max(similarity_scores)
@@ -336,17 +363,14 @@ def fazer_pergunta(train_data, pergunta_usuario, df_produtos):
             resposta_base_produto = responder_com_base_no_produto(pergunta_usuario, df_produtos)
             if resposta_base_produto:
                 return resposta_base_produto
-            resposta_intervalo_preco = responder_com_intervalo_de_preco(pergunta_usuario, df_produtos)
-            if resposta_intervalo_preco:
-                return resposta_intervalo_preco
             return "Desculpe, não entendi a sua pergunta. Pode tentar novamente?"
 
         resposta = respostas_treinamento[melhor_indice]
         return resposta
     except Exception as e:
         return f"Desculpe, não consegui entender a pergunta. Erro: {e}"
-
-if __name__ == "__main__":
+    
+def main():
     df_produtos = conectar_banco_dados()
 
     if df_produtos.empty:
@@ -361,9 +385,19 @@ if __name__ == "__main__":
             if pergunta_usuario.lower() == 'sair':
                 break
             
+            resposta_intervalo = filtrar_produtos_por_intervalo(pergunta_usuario)
+            if resposta_intervalo is not None:
+                if resposta_intervalo.empty:
+                    print("Nenhum produto encontrado para o intervalo especificado.")
+                else:
+                    print(resposta_intervalo)
+                    
             resposta_saudacao = lidar_com_saudacoes(pergunta_usuario)
             if resposta_saudacao:
                 print(resposta_saudacao)
             else:
                 resposta = fazer_pergunta(train_data, pergunta_usuario, df_produtos)
                 print(resposta)
+
+if __name__ == "__main__":
+    main()

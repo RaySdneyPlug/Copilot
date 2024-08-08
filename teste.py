@@ -4,7 +4,19 @@ from unidecode import unidecode
 from sqlalchemy import create_engine
 import os
 
-# Função para identificar intervalos no texto
+
+# Função para conectar ao banco de dados
+def conectar_banco_dados():
+    DB_HOST = os.getenv('DB_HOST', 'db7.mepluga.com')
+    DB_USER = os.getenv('DB_USER', 'usr_pilot')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'rCmLDygzzk7iBhOF')
+    DB_DATABASE = os.getenv('DB_DATABASE', 'plug_copilot')
+    
+    database_connection_str = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_DATABASE}'
+    engine = create_engine(database_connection_str)
+    df_produtos = pd.read_sql_table('produtos', con=engine)
+    return df_produtos
+
 def identificar_intervalo(texto):
     texto = unidecode(texto).lower()
     padroes = [
@@ -23,19 +35,6 @@ def identificar_intervalo(texto):
             maior = float(match.group(2))
             return menor, maior
     return None
-
-# Função para conectar ao banco de dados
-def conectar_banco_dados():
-    DB_HOST = os.getenv('DB_HOST', 'db7.mepluga.com')
-    DB_USER = os.getenv('DB_USER', 'usr_pilot')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'rCmLDygzzk7iBhOF')
-    DB_DATABASE = os.getenv('DB_DATABASE', 'plug_copilot')
-    
-    database_connection_str = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_DATABASE}'
-    engine = create_engine(database_connection_str)
-    df_produtos = pd.read_sql_table('produtos', con=engine)
-    return df_produtos
-
 # Função para filtrar produtos por intervalo de preço
 def filtrar_produtos_por_intervalo(consulta):
     intervalo = identificar_intervalo(consulta)
