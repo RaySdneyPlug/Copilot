@@ -11,6 +11,8 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import numpy as np
+import unicodedata
+from datetime import datetime
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -40,6 +42,7 @@ def criar_pasta_train_data():
 def normalizar_texto(texto):
     return texto.lower().strip()
 
+
 def create_training_data(df_produtos):
     train_data = {"data": []}
 
@@ -56,139 +59,135 @@ def create_training_data(df_produtos):
     produtos_mais_caros = df_produtos[df_produtos['preco'] == preco_mais_caro]
     caros = ', '.join(produtos_mais_caros['nome'].tolist())
 
-    # Dados de treino
-    qa_pairs = [
-        {
-            "pergunta": [
-                "Qual é o nome, o preço e a descrição do produto {nome}?",
-                "Pode me dar informações sobre o produto {nome}?",
-                "Me conte sobre o produto {nome}.",
-                "Quero saber sobre o produto {nome}.",
-                "Fale sobre o produto {nome}.",
-                "O que é o produto {nome}?",
-                "Detalhes sobre o produto {nome}.",
-                "Informações sobre o produto {nome}, por favor.",
-                "Me dê detalhes do produto {nome}.",
-                "Conte-me sobre o produto {nome}."
-            ],
-            "resposta": "O produto {nome} custa {preco} reais e sua descrição é: {descricao}."
-        },
-        {
-            "pergunta": [
-                "Quais produtos custam até {valor} reais?",
-                "Me mostre produtos com preço até {valor} reais.",
-                "Quais são os produtos que custam no máximo {valor} reais?",
-                "Produtos com preço até {valor} reais, por favor.",
-                "Liste os produtos com preço até {valor} reais.",
-                "Quais são os itens até {valor} reais?",
-                "Produtos com preço menor ou igual a {valor} reais.",
-                "Me diga quais produtos custam até {valor} reais.",
-                "Quais são os itens abaixo de {valor} reais?",
-                "Produtos que custam até {valor} reais."
-            ],
-            "resposta": "Os produtos com preço até {valor} reais são: {produtos_ate}."
-        },
-        {
-            "pergunta": [
-                "Qual é o produto mais barato?",
-                "Me mostre produtos com preço mais baixo.",
-                "Qual é o produto com o menor preço?",
-                "Produto mais barato, por favor.",
-                "Qual produto custa menos?",
-                "Qual é o item mais barato?",
-                "Produto com menor preço.",
-                "Qual é o produto mais acessível?",
-                "Qual produto tem o preço mais baixo?",
-                "Me diga o produto mais barato."
-            ],
-            "resposta": "O(s) produto(s) mais barato(s) é(são): {baratos}."
-        },
-        {
-            "pergunta": [
-                "Qual é o produto mais caro?",
-                "Me mostre produtos com preço mais alto.",
-                "Qual é o produto com o maior preço?",
-                "Produto mais caro, por favor.",
-                "Qual produto custa mais?",
-                "Qual é o item mais caro?",
-                "Produto com maior preço.",
-                "Qual é o produto mais caro disponível?",
-                "Qual produto tem o preço mais alto?",
-                "Me diga o produto mais caro."
-            ],
-            "resposta": "O(s) produto(s) mais caro(s) é(são): {caros}."
-        },
-        {
-            "pergunta": [
-                "Quais produtos você tem?",
-                "Liste todos os produtos disponíveis.",
-                "Quais são todos os produtos disponíveis?",
-                "Me mostre todos os produtos.",
-                "Quais itens estão disponíveis?",
-                "Me dê a lista de produtos disponíveis.",
-                "Liste todos os itens disponíveis.",
-                "Quais são os produtos disponíveis para compra?",
-                "Mostrar todos os produtos.",
-                "Quais produtos estão no estoque?"
-            ],
-            "resposta": "Aqui está a lista de produtos: {tabela_produtos}."
-        },
-        {
-            "pergunta": [
-                "Quais produtos estão entre {min_valor} e {max_valor} reais?",
-                "Me mostre produtos que custam entre {min_valor} e {max_valor} reais.",
-                "Liste produtos com preço entre {min_valor} e {max_valor} reais.",
-                "Quais itens estão entre {min_valor} e {max_valor} reais?",
-                "Produtos entre {min_valor} e {max_valor} reais, por favor.",
-                "Quais são os produtos com preço entre {min_valor} e {max_valor} reais?",
-                "Mostre produtos entre {min_valor} e {max_valor} reais.",
-                "Quais são os produtos com preço entre {min_valor} e {max_valor} reais?",
-                "Produtos que custam entre {min_valor} e {max_valor} reais.",
-                "Me diga quais produtos estão entre {min_valor} e {max_valor} reais."
-            ],
-            "resposta": "Os produtos com preço entre {min_valor} e {max_valor} reais são: {produtos_intervalo}."
-        }
-    ]
+    # Função para formatar a lista de produtos
+    def formatar_lista_produtos(lista_produtos):
+        linhas = []
+        for p in lista_produtos:
+            nome = p['nome']
+            preco = p['preco']
+            descricao = p['descricao']
+            linhas.append(f"{nome:<20} | {preco:>8.2f} reais | {descricao}")
 
-    # Adiciona perguntas e respostas para cada produto
-    for product in lista_produtos:
-        nome = product['nome']
-        preco = product['preco']
-        descricao = product['descricao']
-        
+        tabela = "\n".join(linhas)
+        return tabela
+
+    # Criar perguntas e respostas para cada produto
+    for produto in lista_produtos:
+        nome = produto['nome']
+        preco = produto['preco']
+        descricao = produto['descricao']
+
+        # Perguntas e respostas relacionadas a cada produto
+        qa_pairs = [
+            {
+                "pergunta": [
+                    f"Qual é o nome, o preço e a descrição do produto {nome}?",
+                    f"Pode me dar informações sobre o produto {nome}?",
+                    f"Me conte sobre o produto {nome}.",
+                    f"Quero saber sobre o produto {nome}.",
+                    f"Fale sobre o produto {nome}.",
+                    f"O que é o produto {nome}?",
+                    f"Detalhes sobre o produto {nome}.",
+                    f"Informações sobre o produto {nome}, por favor.",
+                    f"Me dê detalhes do produto {nome}.",
+                    f"Conte-me sobre o produto {nome}."
+                ],
+                "resposta": f"O produto {nome} custa {preco:.2f} reais e sua descrição é: {descricao}.",
+                "paragraphs": [{"context": f"O produto {nome} custa {preco:.2f} reais e sua descrição é: {descricao}."}]
+            },
+            {
+                "pergunta": [
+                    f"Quais produtos custam até {preco:.2f} reais?",
+                    f"Me mostre produtos com preço até {preco:.2f} reais.",
+                    f"Quais são os produtos que custam no máximo {preco:.2f} reais?",
+                    f"Produtos com preço até {preco:.2f} reais, por favor.",
+                    f"Liste os produtos com preço até {preco:.2f} reais.",
+                    f"Quais são os itens até {preco:.2f} reais?",
+                    f"Produtos com preço menor ou igual a {preco:.2f} reais.",
+                    f"Me diga quais produtos custam até {preco:.2f} reais.",
+                    f"Quais são os itens abaixo de {preco:.2f} reais?",
+                    f"Produtos que custam até {preco:.2f} reais."
+                ],
+                "resposta": f"Os produtos com preço até {preco:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if p['preco'] <= preco])}.",
+                "paragraphs": [{"context": f"Os produtos com preço até {preco:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if p['preco'] <= preco])}."}]
+            },
+            {
+                "pergunta": [
+                    "Qual é o produto mais barato?",
+                    "Me mostre produtos com preço mais baixo.",
+                    "Qual é o produto com o menor preço?",
+                    "Produto mais barato, por favor.",
+                    "Qual produto custa menos?",
+                    "Qual é o item mais barato?",
+                    "Produto com menor preço.",
+                    "Qual é o produto mais acessível?",
+                    "Qual produto tem o preço mais baixo?",
+                    "Me diga o produto mais barato."
+                ],
+                "resposta": f"O(s) produto(s) mais barato(s) é(são): {baratos}.",
+                "paragraphs": [{"context": f"O(s) produto(s) mais barato(s) é(são): {baratos}."}]
+            },
+            {
+                "pergunta": [
+                    "Qual é o produto mais caro?",
+                    "Me mostre produtos com preço mais alto.",
+                    "Qual é o produto com o maior preço?",
+                    "Produto mais caro, por favor.",
+                    "Qual produto custa mais?",
+                    "Qual é o item mais caro?",
+                    "Produto com maior preço.",
+                    "Qual é o produto mais caro disponível?",
+                    "Qual produto tem o preço mais alto?",
+                    "Me diga o produto mais caro."
+                ],
+                "resposta": f"O(s) produto(s) mais caro(s) é(são): {caros}.",
+                "paragraphs": [{"context": f"O(s) produto(s) mais caro(s) é(são): {caros}."}]
+            },
+            {
+                "pergunta": [
+                    "Quais produtos você tem?",
+                    "Liste todos os produtos disponíveis.",
+                    "Quais são todos os produtos disponíveis?",
+                    "Me mostre todos os produtos.",
+                    "Quais itens estão disponíveis?",
+                    "Me dê a lista de produtos disponíveis.",
+                    "Liste todos os itens disponíveis.",
+                    "Quais são os produtos disponíveis para compra?",
+                    "Mostrar todos os produtos.",
+                    "Quais produtos estão no estoque?"
+                ],
+                "resposta": f"Aqui está a lista de produtos:\n\n{formatar_lista_produtos(lista_produtos)}.",
+                "paragraphs": [{"context": f"Aqui está a lista de produtos:\n\n{formatar_lista_produtos(lista_produtos)}."}]
+            },
+            {
+                "pergunta": [
+                    f"Quais produtos estão entre {preco-10:.2f} e {preco+10:.2f} reais?",
+                    f"Me mostre produtos que custam entre {preco-10:.2f} e {preco+10:.2f} reais.",
+                    f"Liste produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais.",
+                    f"Quais itens estão entre {preco-10:.2f} e {preco+10:.2f} reais?",
+                    f"Produtos entre {preco-10:.2f} e {preco+10:.2f} reais, por favor.",
+                    f"Quais são os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais?",
+                    f"Mostre produtos entre {preco-10:.2f} e {preco+10:.2f} reais.",
+                    f"Quais são os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais?",
+                    f"Produtos que custam entre {preco-10:.2f} e {preco+10:.2f} reais.",
+                    f"Me diga quais produtos estão entre {preco-10:.2f} e {preco+10:.2f} reais."
+                ],
+                "resposta": f"Os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if preco-10 <= p['preco'] <= preco+10])}.",
+                "paragraphs": [{"context": f"Os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if preco-10 <= p['preco'] <= preco+10])}."}]
+            }
+        ]
+
+        # Adiciona cada par de pergunta e resposta ao treinamento
         for pair in qa_pairs:
             for question in pair['pergunta']:
-                valores = {
-                    "nome": nome,
-                    "preco": preco,
-                    "descricao": descricao,
-                    "valor": "",  # Adicionado para evitar erro
-                    "produtos_ate": ', '.join([
-                        f"{p['nome']} ({p['preco']} reais)"
-                        for p in lista_produtos if p['preco'] <= 100
-                    ]),
-                    "tabela_produtos": '\n'.join([
-                        f"{p['nome']}: {p['preco']} reais - {p['descricao']}"
-                        for p in lista_produtos
-                    ]),
-                    "baratos": baratos,
-                    "caros": caros,
-                    "min_valor": 100,  # Definido como exemplo, deve ser ajustado conforme necessário
-                    "max_valor": 200,  # Definido como exemplo, deve ser ajustado conforme necessário
-                    "produtos_intervalo": ', '.join([
-                        f"{p['nome']} ({p['preco']} reais)"
-                        for p in lista_produtos if 100 <= p['preco'] <= 200
-                    ])
-                }
-
-                resposta = pair['resposta'].format(**valores)
                 train_data["data"].append({
                     "pergunta": question,
-                    "resposta": resposta,
-                    "paragraphs": [{"context": resposta}]
+                    "resposta": pair['resposta'],
+                    "paragraphs": pair['paragraphs']
                 })
 
     return train_data
+
 
 def salvar_dados_treinamento(train_data, data_dir):
     train_data_path = os.path.join(data_dir, "train_data.json")
@@ -219,64 +218,79 @@ def comparar_perguntas(pergunta_usuario, perguntas_treinamento):
     return similarity_matrix.flatten()
 
 def lidar_com_saudacoes(pergunta):
-    saudacoes = {
-        "saudacoes": [
-            "olá",
-            "oi",
-            "bom dia",
-            "boa tarde",
-            "boa noite",
-            "e aí",
-            "salve",
-            "hey"
-        ],
-        "despedidas": [
-            "tchau",
-            "adeus",
-            "até logo",
-            "até mais",
-            "até breve"
-        ]
-    }
-
-    respostas = {
-        "saudacoes": [
-            "Olá! Como posso ajudar você hoje?",
-            "Oi! Em que posso te ajudar?",
-            "Bom dia! O que posso fazer por você?",
-            "Boa tarde! O que você precisa?",
-            "Boa noite! Posso te ajudar com algo?",
-            "E aí! O que você está procurando?",
-            "Salve! Estou à disposição para te ajudar.",
-            "Hey! Como posso ser útil hoje?"
-        ],
-        "despedidas": [
-            "Até logo! Se precisar, estarei por aqui.",
-            "Adeus! Tenha um ótimo dia!",
-            "Falou! Volte quando precisar.",
-            "Até breve! Espero te ver novamente.",
-            "Até já! Estarei por aqui se você precisar."
-        ]
-    }
-
-    for padrao in saudacoes["saudacoes"]:
-        if re.search(padrao, pergunta.lower()):
-            return random.choice(respostas["saudacoes"])
+    saudacoes = [
+        "olá", "oi", "bom dia", "boa tarde", "boa noite", "e aí", "salve", "hey", "chat", "alô", "saudações", "oi oi",
+        "ola", "ola!", "olá!", "olá, como vai?", "bom dia!", "boa tarde!", "boa noite!", "oi, tudo bem?", "saudações!", "hey, tudo bem?",
+        "oi, como está?", "olá, tudo bem?", "oi, olá", "como vai?", "como você está?", "e aí, tudo certo?", "e aí, chat", "e aí, robô",
+        "salve, chat", "salve, robô", "olá, chat", "oi, robô", "e aí, pessoal","eai"]
     
-    for padrao in saudacoes["despedidas"]:
-        if re.search(padrao, pergunta.lower()):
-            return random.choice(respostas["despedidas"])
+    despedidas = [
+        "tchau", "adeus", "até logo", "até mais", "até breve", "falou", "nos vemos", "até a próxima", "até mais ver", "adeus, até mais",
+        "até logo mais", "um abraço", "um beijo", "até logo!", "até breve!", "nos vemos em breve", "fique bem", "boa sorte", "cuide-se",
+        "até mais!", "até logo, chat", "até breve, robô", "até mais, pessoal", "tchau, chat", "tchau, robô", "um abraço, chat", "um beijo, robô", "valeu"
+    ]
+
+    respostas_saudacoes = [
+        "Olá! Como posso ajudar você hoje?",
+        "Oi! Em que posso te ajudar?",
+        "Bom dia! O que posso fazer por você?",
+        "Boa tarde! O que você precisa?",
+        "Boa noite! Posso te ajudar com algo?",
+        "E aí! O que você está procurando?",
+        "Estou à disposição para te ajudar.",
+        "Hey! Como posso ser útil hoje?",
+        "Saudações! Como posso ajudar?"
+    ]
+    
+    respostas_despedidas = [
+        "Até logo! Se precisar, estarei por aqui.",
+        "Adeus! Tenha um ótimo dia!",
+        "Falou! Volte quando precisar.",
+        "Até breve! Espero te ver novamente.",
+        "Até já! Estarei por aqui se você precisar.",
+        "Um abraço! Volte sempre.",
+        "Fique bem! Até a próxima.",
+        "Cuide-se! Até logo."
+    ]
+
+    hora_atual = datetime.now().hour
+    if 5 <= hora_atual < 12:
+        saudacao_periodo = "Bom dia!"
+    elif 12 <= hora_atual < 18:
+        saudacao_periodo = "Boa tarde!"
+    else:
+        saudacao_periodo = "Boa noite!"
+
+    # Normalizar a pergunta
+    pergunta_normalizada = pergunta.lower().strip()
+
+    # Verificar saudações
+    for saudacao in saudacoes:
+        if saudacao in pergunta_normalizada:
+            return random.choice([resposta for resposta in respostas_saudacoes if saudacao_periodo in resposta])
+
+    # Verificar despedidas
+    for despedida in despedidas:
+        if despedida in pergunta_normalizada:
+            return random.choice(respostas_despedidas)
     
     return None
 
+def remover_acentos(texto):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+
 def responder_com_base_no_produto(pergunta_usuario, df_produtos):
-    pergunta_normalizada = preprocessar_texto(pergunta_usuario)
+    pergunta_normalizada = remover_acentos(preprocessar_texto(pergunta_usuario))
+    
     for _, produto in df_produtos.iterrows():
-        nome = produto['nome']
+        nome = remover_acentos(produto['nome']).lower()
         nome_normalizado = produto['nome_normalizado']
 
         if nome_normalizado in pergunta_normalizada:
-            return f"O produto {nome} custa {produto['preco']} reais e sua descrição é: {produto['descricao']}."
+            return f"O produto {produto['nome']} custa {produto['preco']} reais e sua descrição é: {produto['descricao']}."
     
     return None
 
