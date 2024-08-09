@@ -13,11 +13,12 @@ from nltk.corpus import stopwords
 import numpy as np
 import unicodedata
 from datetime import datetime
-from unidecode import unidecode
-
 nltk.download('punkt')
 nltk.download('stopwords')
+from Perg_precos import ProdutoFiltro
 
+
+Filtropreco = ProdutoFiltro()
 # Variáveis de ambiente do banco de dados
 DB_HOST = os.getenv('DB_HOST', 'db7.mepluga.com')
 DB_USER = os.getenv('DB_USER', 'usr_pilot')
@@ -160,22 +161,6 @@ def create_training_data(df_produtos):
                 "resposta": f"Aqui está a lista de produtos:\n\n{formatar_lista_produtos(lista_produtos)}.",
                 "paragraphs": [{"context": f"Aqui está a lista de produtos:\n\n{formatar_lista_produtos(lista_produtos)}."}]
             },
-            {
-                "pergunta": [
-                    f"Quais produtos estão entre {preco-10:.2f} e {preco+10:.2f} reais?",
-                    f"Me mostre produtos que custam entre {preco-10:.2f} e {preco+10:.2f} reais.",
-                    f"Liste produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais.",
-                    f"Quais itens estão entre {preco-10:.2f} e {preco+10:.2f} reais?",
-                    f"Produtos entre {preco-10:.2f} e {preco+10:.2f} reais, por favor.",
-                    f"Quais são os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais?",
-                    f"Mostre produtos entre {preco-10:.2f} e {preco+10:.2f} reais.",
-                    f"Quais são os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais?",
-                    f"Produtos que custam entre {preco-10:.2f} e {preco+10:.2f} reais.",
-                    f"Me diga quais produtos estão entre {preco-10:.2f} e {preco+10:.2f} reais."
-                ],
-                "resposta": f"Os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if preco-10 <= p['preco'] <= preco+10])}.",
-                "paragraphs": [{"context": f"Os produtos com preço entre {preco-10:.2f} e {preco+10:.2f} reais são:\n{formatar_lista_produtos([p for p in lista_produtos if preco-10 <= p['preco'] <= preco+10])}."}]
-            }
         ]
 
         # Adiciona cada par de pergunta e resposta ao treinamento
@@ -267,8 +252,9 @@ def lidar_com_saudacoes(pergunta):
 
     # Verificar saudações
     for saudacao in saudacoes:
-        if saudacao in pergunta_normalizada:
+        if pergunta_normalizada.startswith(saudacao):
             return random.choice([resposta for resposta in respostas_saudacoes if saudacao_periodo in resposta])
+
 
     # Verificar despedidas
     for despedida in despedidas:
@@ -295,48 +281,6 @@ def responder_com_base_no_produto(pergunta_usuario, df_produtos):
     
     return None
 
-def identificar_intervalo(consulta):
-    texto = unidecode(consulta).lower()  # Corrigir aqui
-    padroes = [
-        r"entre\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)",
-        r"de\s*(\d+\.?\d*)\s*até\s*(\d+\.?\d*)",
-        r"de\s*(\d+\.?\d*)\s*a\s*(\d+\.?\d*)",
-        r"de\s*(\d+\.?\d*)\s*até\s*(\d+\.?\d*)",
-        r"de\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)",
-        r"entre\s*(\d+\.?\d*)\s*e\s*(\d+\.?\d*)"
-    ]
-    
-    for padrao in padroes:
-        match = re.search(padrao, texto)
-        if match:
-            menor = float(match.group(1))
-            maior = float(match.group(2))
-            return menor, maior
-        
-    return None
-
-# Função para filtrar produtos por intervalo de preço
-def filtrar_produtos_por_intervalo(consulta):
-    intervalo = identificar_intervalo(consulta)
-    if not intervalo:
-        return None
-
-    menor, maior = intervalo
-
-    # Carregar dados dos produtos
-    try:
-        df_produtos = conectar_banco_dados()
-    except Exception as e:
-        print(f"Erro ao carregar dados do banco de dados: {e}")
-        return None
-
-    # Filtrar produtos pelo intervalo de preço
-    df_filtrado = df_produtos[(df_produtos['preco'] >= menor) & (df_produtos['preco'] <= maior)]
-
-    # Selecionar apenas as colunas desejadas
-    df_filtrado = df_filtrado[['nome', 'descricao', 'preco']]
-
-    return df_filtrado
 
 def fazer_pergunta(train_data, pergunta_usuario, df_produtos):
     try:
@@ -384,20 +328,31 @@ def main():
             pergunta_usuario = input("Digite sua pergunta (ou 'sair' para encerrar): ")
             if pergunta_usuario.lower() == 'sair':
                 break
-            
-            resposta_intervalo = filtrar_produtos_por_intervalo(pergunta_usuario)
-            if resposta_intervalo is not None:
-                if resposta_intervalo.empty:
-                    print("Nenhum produto encontrado para o intervalo especificado.")
-                else:
-                    print(resposta_intervalo)
-                    
+
             resposta_saudacao = lidar_com_saudacoes(pergunta_usuario)
             if resposta_saudacao:
                 print(resposta_saudacao)
-            else:
-                resposta = fazer_pergunta(train_data, pergunta_usuario, df_produtos)
-                print(resposta)
+                continue
+            
+            # Primeiro, verifique a filtragem de preços
+            resposta_maximo = Filtropreco.filtrar_produtos_por_valor_maximo(pergunta_usuario)
+            if resposta_maximo is not None and not resposta_maximo.empty:
+                print(resposta_maximo)
+                continue
+
+            resposta_minimo = Filtropreco.filtrar_produtos_por_valor_minimo(pergunta_usuario)
+            if resposta_minimo is not None and not resposta_minimo.empty:
+                print(resposta_minimo)
+                continue
+
+            resposta_intervalo = Filtropreco.filtrar_produtos_por_intervalo(pergunta_usuario)
+            if resposta_intervalo is not None and not resposta_intervalo.empty:
+                print(resposta_intervalo)
+                continue
+
+            # Se nenhuma das condições anteriores for atendida, use o modelo treinado
+            resposta = fazer_pergunta(train_data, pergunta_usuario, df_produtos)
+            print(resposta)
 
 if __name__ == "__main__":
     main()
