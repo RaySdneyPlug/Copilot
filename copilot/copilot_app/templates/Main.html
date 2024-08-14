@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #chat-container {
+            background-color: #fff;
+            width: 60vw;
+            height: 600px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        #messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+        }
+        #message-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+        #message-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #message-input button {
+            padding: 10px;
+            background-color: #007bff;
+            border: none;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="message-input">
+            <input type="text" id="user-message" placeholder="Digite sua mensagem...">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        function sendMessage() {
+            const userMessage = document.getElementById('user-message').value;
+            const messagesContainer = document.getElementById('messages');
+
+            if (userMessage.trim() !== "") {
+                // Adiciona a mensagem do usuário ao chat
+                messagesContainer.innerHTML += `<div><strong>Você:</strong> ${userMessage}</div>`;
+                document.getElementById('user-message').value = '';
+
+                // Envia a mensagem para a view do chatbot
+                fetch("{% url 'copilot' %}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: `message=${encodeURIComponent(userMessage)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Adiciona a resposta do chatbot ao chat
+                    messagesContainer.innerHTML += `<div><strong>Chatbot:</strong> ${data.response}</div>`;
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Rola para a última mensagem
+                })
+                .catch(error => {
+                    console.error("Erro:", error);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
